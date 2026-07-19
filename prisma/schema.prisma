@@ -1,0 +1,224 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum EmployeeRole {
+  MANAGER
+  WAITER
+  CHEF
+  CASHIER
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  COOKING
+  READY
+  SERVED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BKASH
+  NAGAD
+  ROCKET
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum LedgerType {
+  INCOME
+  EXPENSE
+}
+
+model User {
+  id       String   @id @default(cuid())
+  fullName String
+  phone    String   @unique
+  email    String?  @unique
+  password String?
+  role     UserRole @default(CUSTOMER)
+
+  orders   Order[]
+  payments Payment[]
+  ledgers  Ledger[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Employee {
+  id String @id @default(cuid())
+
+  name     String
+  phone    String @unique
+  email    String? @unique
+  password String?
+  role     EmployeeRole
+
+  salary Float?
+
+  orders  Order[]
+  ledgers Ledger[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id String @id @default(cuid())
+
+  name          String  @unique
+  imagePublicId String?
+
+  menuItems MenuItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MenuItem {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+
+  price Float
+  stock Int   @default(0)
+
+  isAvailable Boolean @default(true)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  images MenuImage[]
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MenuImage {
+  id String @id @default(cuid())
+
+  imagePublicId String
+
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  orderNumber String @unique
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  total Float
+
+  discount Float @default(0)
+
+  vat Float @default(0)
+
+  grandTotal Float
+
+  note String?
+
+  status OrderStatus @default(PENDING)
+
+  orderItems OrderItem[]
+
+  payment Payment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id])
+
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  quantity Int
+
+  price Float
+
+  total Float
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String  @unique
+  order   Order   @relation(fields: [orderId], references: [id])
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  amount Float
+
+  method PaymentMethod
+
+  status PaymentStatus @default(PENDING)
+
+  transactionId String?
+
+  ledger Ledger?
+
+  createdAt DateTime @default(now())
+}
+
+model Ledger {
+  id String @id @default(cuid())
+
+  type LedgerType
+
+  amount Float
+
+  description String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  paymentId String? @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now())
+}
