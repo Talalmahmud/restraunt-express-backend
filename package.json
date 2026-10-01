@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "seed:admin": "tsx prisma/seed.ts"
+    "seed:admin": "tsx prisma/seed.ts",
+    "seed:menu": "tsx prisma/seed-menu.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
