@@ -8,6 +8,9 @@ import type { UpdateCategoryDto } from './dto/update-category.dto';
 
 const CATEGORY_FOLDER = 'categories';
 
+/** Lets the dashboard show item counts and warn before blocked deletes. */
+const withItemCount = { _count: { select: { menuItems: true } } } as const;
+
 export async function createCategory(dto: CreateCategoryDto, file?: Express.Multer.File) {
   const existing = await prisma.category.findUnique({ where: { name: dto.name } });
   if (existing) throw new ConflictError('Category name already exists');
@@ -25,6 +28,7 @@ export async function getAllCategories(pagination: PaginationQueryDto) {
   const { page, limit } = pagination;
   const [data, total] = await Promise.all([
     prisma.category.findMany({
+      include: withItemCount,
       orderBy: { name: 'asc' },
       skip: (page - 1) * limit,
       take: limit,
@@ -35,7 +39,7 @@ export async function getAllCategories(pagination: PaginationQueryDto) {
 }
 
 export async function getCategoryById(id: string) {
-  const category = await prisma.category.findUnique({ where: { id } });
+  const category = await prisma.category.findUnique({ where: { id }, include: withItemCount });
   if (!category) throw new NotFoundError('Category not found');
   return category;
 }
