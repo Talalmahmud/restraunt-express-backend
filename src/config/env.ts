@@ -16,6 +16,8 @@ export const env = {
     refreshSecret: required('JWT_REFRESH_SECRET'),
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
+  /** Optional: enables Expo's enhanced push security. */
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN,
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     apiKey: process.env.CLOUDINARY_API_KEY,

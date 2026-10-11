@@ -7,6 +7,8 @@ import { employeeRouter } from './employee/employee.routes';
 import { categoryRouter } from './menu/category.routes';
 import { menuItemRouter } from './menu/menu-item.routes';
 import { orderRouter } from './order/order.routes';
+import { tableRouter } from './table/table.routes';
+import { notificationRouter } from './notification/notification.routes';
 import { paymentRouter } from './payment/payment.routes';
 import { ledgerRouter } from './ledger/ledger.routes';
 import { dashboardRouter } from './dashboard/dashboard.routes';
@@ -28,6 +30,8 @@ export function createApp() {
   app.use('/categories', categoryRouter);
   app.use('/menu-items', menuItemRouter);
   app.use('/orders', orderRouter);
+  app.use('/tables', tableRouter);
+  app.use('/push-tokens', notificationRouter);
   app.use('/payments', paymentRouter);
   app.use('/ledgers', ledgerRouter);
   app.use('/dashboard', dashboardRouter);

@@ -43,4 +43,10 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** Dine-in table; leave out for takeaway. */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  tableId?: string;
 }

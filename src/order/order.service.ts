@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
-import { OrderStatus } from '../generated/prisma/enums';
+import { EmployeeRole, OrderStatus } from '../generated/prisma/enums';
+import { notifyOrderStage } from '../notification/order-notifications';
 import { ConflictError, NotFoundError } from '../common/errors/http-errors';
 import { buildPaginatedResult } from '../common/paginate';
 import type { PaginationQueryDto } from '../common/dto/pagination-query.dto';
@@ -10,6 +11,8 @@ const ORDER_INCLUDE = {
   orderItems: { include: { menuItem: { include: { images: true } } } },
   user: { select: { id: true, fullName: true, phone: true } },
   employee: { select: { id: true, name: true, role: true } },
+  waiter: { select: { id: true, name: true } },
+  table: { select: { id: true, name: true } },
   payment: true,
 };
 
@@ -21,12 +24,24 @@ function generateOrderNumber(): string {
   return `ORD-${timestamp}-${random}`;
 }
 
+export interface CreateOrderOptions {
+  /** The employee placing the order (a walk-in order taken by staff). */
+  employeeId?: string;
+  /** Set when a waiter takes the order: it is then confirmed straight away. */
+  waiterId?: string;
+}
+
 export async function createOrder(
   userId: string | undefined,
   dto: CreateOrderDto,
-  employeeId?: string,
+  { employeeId, waiterId }: CreateOrderOptions = {},
 ) {
-  return prisma.$transaction(async (tx) => {
+  const order = await prisma.$transaction(async (tx) => {
+    if (dto.tableId) {
+      const table = await tx.table.findUnique({ where: { id: dto.tableId } });
+      if (!table) throw new NotFoundError('Table not found');
+    }
+
     let total = 0;
     const itemsData: {
       menuItemId: string;
@@ -71,6 +86,11 @@ export async function createOrder(
         orderNumber: generateOrderNumber(),
         userId,
         employeeId,
+        waiterId,
+        tableId: dto.tableId,
+        // A waiter taking the order *is* the confirmation; everyone else's
+        // orders wait for a waiter to confirm them.
+        status: waiterId ? OrderStatus.ACCEPTED : OrderStatus.PENDING,
         total,
         discount,
         vat,
@@ -81,6 +101,9 @@ export async function createOrder(
       include: ORDER_INCLUDE,
     });
   });
+
+  notifyOrderStage(order);
+  return order;
 }
 
 export async function getAllOrders(pagination: PaginationQueryDto) {
@@ -114,8 +137,9 @@ export async function getOrderById(id: string) {
 export async function updateOrderStatus(
   id: string,
   dto: UpdateOrderStatusDto,
-  employeeId?: string,
+  actor: { employeeId?: string; role?: string } = {},
 ) {
+  const { employeeId } = actor;
   const order = await prisma.order.findUnique({
     where: { id },
     include: { orderItems: true },
@@ -129,7 +153,15 @@ export async function updateOrderStatus(
     throw new ConflictError('Cannot change the status of a completed order');
   }
 
-  return prisma.$transaction(async (tx) => {
+  // A waiter who confirms someone else's order becomes its waiter, so they
+  // are the one told when it is ready.
+  const becomesWaiter =
+    dto.status === OrderStatus.ACCEPTED &&
+    actor.role === EmployeeRole.WAITER &&
+    !order.waiterId &&
+    employeeId;
+
+  const updated = await prisma.$transaction(async (tx) => {
     if (dto.status === OrderStatus.CANCELLED) {
       for (const item of order.orderItems) {
         await tx.menuItem.update({
@@ -141,10 +173,17 @@ export async function updateOrderStatus(
 
     return tx.order.update({
       where: { id },
-      data: { status: dto.status, employeeId: employeeId ?? order.employeeId },
+      data: {
+        status: dto.status,
+        employeeId: employeeId ?? order.employeeId,
+        ...(becomesWaiter ? { waiterId: employeeId } : {}),
+      },
       include: ORDER_INCLUDE,
     });
   });
+
+  if (dto.status !== order.status) notifyOrderStage(updated, order.status);
+  return updated;
 }
 
 export async function deleteOrder(id: string) {

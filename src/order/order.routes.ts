@@ -20,7 +20,11 @@ const STAFF_ROLES = [
 ];
 
 /** Employee roles allowed to place a walk-in order (no customer account attached). */
-const WALK_IN_ORDER_ROLES: string[] = [EmployeeRole.MANAGER, EmployeeRole.CASHIER];
+const WALK_IN_ORDER_ROLES: string[] = [
+  EmployeeRole.MANAGER,
+  EmployeeRole.CASHIER,
+  EmployeeRole.WAITER,
+];
 
 export const orderRouter = Router();
 
@@ -38,9 +42,13 @@ orderRouter.post(
       result = await orderService.createOrder(user.id, dto);
     } else if (user.type === 'employee' && WALK_IN_ORDER_ROLES.includes(user.role)) {
       // Walk-in order taken by staff on behalf of a customer with no account.
-      result = await orderService.createOrder(undefined, dto, user.id);
+      // A waiter's order is confirmed on the spot and sent to the kitchen.
+      result = await orderService.createOrder(undefined, dto, {
+        employeeId: user.id,
+        waiterId: user.role === EmployeeRole.WAITER ? user.id : undefined,
+      });
     } else {
-      throw new ForbiddenError('Only customers, managers, or cashiers can place orders');
+      throw new ForbiddenError('Only customers, waiters, managers, or cashiers can place orders');
     }
     res.status(201).json(result);
   }),
@@ -88,11 +96,10 @@ orderRouter.patch(
   validateBody(UpdateOrderStatusDto),
   asyncHandler(async (req, res) => {
     const user = req.user!;
-    const employeeId = user.type === 'employee' ? user.id : undefined;
     const result = await orderService.updateOrderStatus(
-      (req.params.id as string),
+      req.params.id as string,
       req.body as UpdateOrderStatusDto,
-      employeeId,
+      { employeeId: user.type === 'employee' ? user.id : undefined, role: user.role },
     );
     res.status(200).json(result);
   }),

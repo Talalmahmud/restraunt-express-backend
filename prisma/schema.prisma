@@ -74,15 +74,23 @@ model Employee {
   id String @id @default(cuid())
 
   name     String
-  phone    String @unique
-  email    String? @unique
+  phone    String       @unique
+  email    String?      @unique
   password String?
   role     EmployeeRole
 
   salary Float?
 
-  orders  Order[]
-  ledgers Ledger[]
+  /**
+   * Orders this employee last touched (placed or updated).
+   */
+  orders       Order[]     @relation("OrderEmployee")
+  /**
+   * Orders this employee took as the waiter.
+   */
+  waitedOrders Order[]     @relation("OrderWaiter")
+  ledgers      Ledger[]
+  pushTokens   PushToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,7 +150,16 @@ model Order {
   user   User?   @relation(fields: [userId], references: [id])
 
   employeeId String?
-  employee   Employee? @relation(fields: [employeeId], references: [id])
+  employee   Employee? @relation("OrderEmployee", fields: [employeeId], references: [id])
+
+  /**
+   * The waiter who took the order; unlike employeeId it never changes afterwards.
+   */
+  waiterId String?
+  waiter   Employee? @relation("OrderWaiter", fields: [waiterId], references: [id])
+
+  tableId String?
+  table   Table?  @relation(fields: [tableId], references: [id])
 
   total Float
 
@@ -168,7 +185,7 @@ model OrderItem {
   id String @id @default(cuid())
 
   orderId String
-  order   Order @relation(fields: [orderId], references: [id])
+  order   Order  @relation(fields: [orderId], references: [id])
 
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
@@ -183,8 +200,8 @@ model OrderItem {
 model Payment {
   id String @id @default(cuid())
 
-  orderId String  @unique
-  order   Order   @relation(fields: [orderId], references: [id])
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
@@ -217,8 +234,35 @@ model Ledger {
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id])
 
-  paymentId String? @unique
+  paymentId String?  @unique
   payment   Payment? @relation(fields: [paymentId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+model Table {
+  id String @id @default(cuid())
+
+  /// Label shown to staff, e.g. "T1" or "Window 2".
+  name  String @unique
+  seats Int    @default(4)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Expo push tokens of staff devices, used to alert chefs and waiters.
+model PushToken {
+  id String @id @default(cuid())
+
+  token    String @unique
+  platform String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
