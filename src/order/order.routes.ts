@@ -4,7 +4,7 @@ import { validateBody, validateQuery } from '../common/validate';
 import { authenticate } from '../common/middleware/auth';
 import { requireRoles } from '../common/middleware/roles';
 import { ForbiddenError } from '../common/errors/http-errors';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { QueryOrderDto } from './dto/query-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UserRole, EmployeeRole } from '../generated/prisma/enums';
@@ -57,9 +57,9 @@ orderRouter.post(
 orderRouter.get(
   '/',
   requireRoles(...STAFF_ROLES),
-  validateQuery(PaginationQueryDto),
+  validateQuery(QueryOrderDto),
   asyncHandler(async (req, res) => {
-    const result = await orderService.getAllOrders(req.query as unknown as PaginationQueryDto);
+    const result = await orderService.getAllOrders(req.query as unknown as QueryOrderDto);
     res.status(200).json(result);
   }),
 );

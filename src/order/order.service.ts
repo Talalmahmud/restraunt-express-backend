@@ -3,7 +3,8 @@ import { EmployeeRole, OrderStatus } from '../generated/prisma/enums';
 import { notifyOrderStage } from '../notification/order-notifications';
 import { ConflictError, NotFoundError } from '../common/errors/http-errors';
 import { buildPaginatedResult } from '../common/paginate';
-import type { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import type { Prisma } from '../generated/prisma/client';
+import type { QueryOrderDto } from './dto/query-order.dto';
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
@@ -106,16 +107,36 @@ export async function createOrder(
   return order;
 }
 
-export async function getAllOrders(pagination: PaginationQueryDto) {
-  const { page, limit } = pagination;
+export async function getAllOrders(query: QueryOrderDto) {
+  const { page, limit } = query;
+  const where: Prisma.OrderWhereInput = {};
+  if (query.status) where.status = query.status;
+  if (query.tableId) where.tableId = query.tableId;
+  if (query.payment === 'UNPAID') where.payment = { is: null };
+  else if (query.payment) where.payment = { is: { status: query.payment } };
+  if (query.search) {
+    const contains = { contains: query.search, mode: 'insensitive' as const };
+    where.OR = [
+      { orderNumber: contains },
+      { user: { is: { fullName: contains } } },
+      { user: { is: { phone: contains } } },
+    ];
+  }
+  if (query.from || query.to) {
+    where.createdAt = {
+      ...(query.from ? { gte: new Date(`${query.from.slice(0, 10)}T00:00:00.000Z`) } : {}),
+      ...(query.to ? { lte: new Date(`${query.to.slice(0, 10)}T23:59:59.999Z`) } : {}),
+    };
+  }
   const [data, total] = await Promise.all([
     prisma.order.findMany({
+      where,
       include: ORDER_INCLUDE,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.order.count(),
+    prisma.order.count({ where }),
   ]);
   return buildPaginatedResult(data, total, page, limit);
 }
